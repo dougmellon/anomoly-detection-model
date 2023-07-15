@@ -30,7 +30,7 @@ autoencoder = AutoEncoder(contamination=0.05, hidden_neurons=[2, 2])
 autoencoder.fit(x_train)
 
 #  Training data
-y_training_scores = autoencoder.decision_function(x_test)
+y_train_scores = autoencoder.decision_function(x_test)
 y_train_pred = autoencoder.predict(x_train)
 
 #  Testing data
@@ -54,7 +54,40 @@ print('The testing data:', count_stat(y_test_pred))
 # select a reasonable threshold. Take the natural cut in the histogram to determine the score.
 
 plt.figure(figsize=(6, 4), dpi=80)
-plt.hist(y_training_scores, bins='auto')  # arguments are passed to np.histogram
+plt.hist(y_train_scores, bins='auto')  # arguments are passed to np.histogram
 plt.title('Outlier score')
 plt.show()
 
+threshold = autoencoder.threshold_  # Or other value from the above threshold. The default is 10
+
+
+def descriptive_stat_threshold(df, pred_score, threshold):
+    # Determine how many 0's and 1's there are
+    df = pd.DataFrame(df)
+    df['Anomaly_Score'] = pred_score
+    df['Group'] = np.where(df['Anomaly_Score'] < threshold, 'Normal', 'Outlier')
+
+    # Show the summary statistics
+    cnt = df.groupby('Group')['Anomaly_Score'].count().reset_index().rename(columns={'Anomaly_Score': 'Count'})
+    cnt['Count %'] = (cnt['Count'].sum()) * 100  # The count and the count %
+    stat = df.groupby('Group').mean().round(2).reset_index()  # The average
+    stat = cnt.merge(stat, left_on='Group', right_on='Group')  # Put the count and the average together
+
+    return stat
+
+
+table = descriptive_stat_threshold(x_train, y_train_scores, threshold)
+print(table)
+
+
+#  Generate a confusion matrix
+def confusion_matrix(actual, score, threshold):
+    actual_pred = pd.DataFrame({'Actual': actual, 'Pred': score})
+    actual_pred['Pred'] = np.where(actual_pred['Pred'] <= threshold, 0, 1)
+    cm = pd.crosstab(actual_pred['Actual'], actual_pred['Pred'])
+
+    return cm
+
+
+confusion_matrix = confusion_matrix(y_train, y_train_scores, threshold)
+print(confusion_matrix)
